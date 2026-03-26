@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QPGen — AI Question Paper Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#070b14; --surface:#0d1526; --surface2:#111e36; --border:#1e3055;
+  --accent:#00d4ff; --accent2:#7c3aed; --accent3:#f59e0b; --mcq:#10b981;
+  --text:#e2e8f0; --text-dim:#64748b; --success:#10b981; --danger:#ef4444;
+  --glow:0 0 30px rgba(0,212,255,0.15);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);
+  background-size:40px 40px;animation:gridMove 20s linear infinite}
+@keyframes gridMove{0%{transform:translateY(0)}100%{transform:translateY(40px)}}
+.bg-orb{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(80px);animation:orbFloat 8s ease-in-out infinite}
+.orb1{width:500px;height:500px;background:radial-gradient(circle,rgba(0,212,255,0.08),transparent 70%);top:-100px;left:-100px}
+.orb2{width:400px;height:400px;background:radial-gradient(circle,rgba(124,58,237,0.1),transparent 70%);bottom:-100px;right:-100px;animation-delay:-4s}
+.orb3{width:300px;height:300px;background:radial-gradient(circle,rgba(16,185,129,0.06),transparent 70%);top:40%;left:40%;animation-delay:-2s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,-30px) scale(1.05)}}
+
+.app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:30px 24px}
+
+header{text-align:center;margin-bottom:48px;animation:fadeDown .8s ease both}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-30px)}to{opacity:1;transform:translateY(0)}}
+.logo-badge{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,rgba(0,212,255,.1),rgba(124,58,237,.1));
+  border:1px solid var(--border);border-radius:50px;padding:8px 20px;margin-bottom:20px;
+  font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--accent)}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+h1{font-size:clamp(2.5rem,5vw,4rem);font-weight:800;line-height:1.1;
+  background:linear-gradient(135deg,#fff 0%,var(--accent) 50%,var(--accent2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.tagline{color:var(--text-dim);font-size:1.1rem;margin-top:12px;font-family:'DM Mono',monospace;font-weight:300}
+
+/* API Status Badge */
+.api-status{display:inline-flex;align-items:center;gap:8px;margin-top:14px;
+  padding:6px 16px;border-radius:50px;border:1px solid var(--border);
+  font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;transition:all .3s}
+.api-status.ok{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.08);color:#10b981}
+.api-status.fail{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.08);color:#ef4444}
+.api-status.checking{border-color:var(--border);color:var(--text-dim)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s ease infinite}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:28px;margin-bottom:24px;transition:border-color .3s,box-shadow .3s;animation:fadeUp .6s ease both}
+.card:hover{border-color:rgba(0,212,255,.3);box-shadow:var(--glow)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.card:nth-child(1){animation-delay:.1s}.card:nth-child(2){animation-delay:.2s}.card:nth-child(3){animation-delay:.3s}
+
+.card-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.step-num{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0}
+.step-num.s1{background:rgba(0,212,255,.15);color:var(--accent);border:1px solid rgba(0,212,255,.3)}
+.step-num.s2{background:rgba(124,58,237,.15);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}
+.step-num.s3{background:rgba(245,158,11,.15);color:var(--accent3);border:1px solid rgba(245,158,11,.3)}
+.card-title{font-size:1.1rem;font-weight:700}
+.card-sub{font-size:.82rem;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:2px}
+
+.upload-zone{border:2px dashed var(--border);border-radius:16px;padding:48px 24px;text-align:center;
+  cursor:pointer;transition:all .3s;position:relative;overflow:hidden;background:rgba(0,212,255,.02)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(0,212,255,.05)}
+.upload-zone.drag::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(0,212,255,.05),rgba(124,58,237,.05));animation:shimmer 1s ease infinite}
+@keyframes shimmer{0%,100%{opacity:.5}50%{opacity:1}}
+.upload-icon{font-size:3rem;margin-bottom:12px;display:block}
+.upload-title{font-size:1.1rem;font-weight:600;margin-bottom:6px}
+.upload-hint{font-size:.85rem;color:var(--text-dim);font-family:'DM Mono',monospace}
+#fileInput{display:none}
+
+.progress-wrap{margin-top:16px;display:none}
+.progress-bar{height:4px;background:var(--border);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  border-radius:4px;transition:width .3s;animation:progressGlow 1.5s ease infinite}
+@keyframes progressGlow{0%,100%{box-shadow:0 0 8px rgba(0,212,255,.5)}50%{box-shadow:0 0 20px rgba(0,212,255,.9)}}
+.progress-label{font-size:.8rem;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:8px}
+
+.pdf-stats{display:none;gap:12px;flex-wrap:wrap;margin-top:16px}
+.stat-chip{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;font-family:'DM Mono',monospace;font-size:.8rem;
+  display:flex;align-items:center;gap:6px;animation:chipIn .4s ease both}
+@keyframes chipIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+.chip-label{color:var(--text-dim)}.chip-val{color:var(--accent);font-weight:500}
+
+.topics-wrap{margin-top:16px;display:none}
+.topics-label{font-size:.75rem;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);border-radius:6px;
+  padding:4px 10px;font-size:.78rem;color:var(--accent);font-family:'DM Mono',monospace;
+  animation:tagPop .3s ease both;transition:background .2s}
+.tag:hover{background:rgba(0,212,255,.15)}
+@keyframes tagPop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.form-group{display:flex;flex-direction:column;gap:6px}
+label{font-size:.78rem;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+input[type=text]{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 14px;color:var(--text);font-family:'Syne',sans-serif;font-size:.9rem;
+  outline:none;transition:border-color .2s,box-shadow .2s}
+input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+
+/* ── Sections builder ── */
+.sections-area{margin-top:8px}
+.section-type-tabs{display:flex;gap:10px;margin-bottom:16px}
+.sec-tab{padding:8px 18px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface2);cursor:pointer;font-size:.82rem;font-family:'DM Mono',monospace;
+  color:var(--text-dim);transition:all .2s}
+.sec-tab:hover{border-color:var(--accent);color:var(--accent)}
+.sec-tab.active-marks{border-color:rgba(0,212,255,.5);background:rgba(0,212,255,.08);color:var(--accent)}
+.sec-tab.active-mcq{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.08);color:var(--mcq)}
+
+.sections-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sections-title{font-size:.88rem;font-weight:600;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+.btn-add{display:flex;align-items:center;gap:6px;background:rgba(0,212,255,.08);
+  border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:7px 14px;cursor:pointer;
+  color:var(--accent);font-size:.82rem;font-family:'DM Mono',monospace;transition:all .2s}
+.btn-add:hover{background:rgba(0,212,255,.15);transform:translateY(-1px)}
+
+.col-labels{display:grid;grid-template-columns:1fr 1fr 40px;gap:10px;margin-bottom:4px}
+.col-labels span{font-size:.72rem;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px}
+
+.section-row{display:grid;grid-template-columns:1fr 1fr 40px;gap:10px;align-items:center;
+  margin-bottom:10px;animation:slideIn .3s ease both}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.section-row input[type=number]{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:.9rem;
+  outline:none;transition:border-color .2s;-moz-appearance:textfield}
+.section-row input[type=number]::-webkit-outer-spin-button,
+.section-row input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+.section-row input[type=number]:focus{border-color:var(--accent)}
+.btn-remove{width:36px;height:36px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);
+  border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--danger);font-size:18px;transition:all .2s;flex-shrink:0}
+.btn-remove:hover{background:rgba(239,68,68,.2);transform:scale(1.05)}
+
+/* MCQ row — single input */
+.mcq-row{display:flex;align-items:center;gap:12px;padding:12px 16px;
+  background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);
+  border-radius:12px;margin-bottom:10px;animation:slideIn .3s ease both}
+.mcq-badge{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);
+  border-radius:8px;padding:4px 12px;color:var(--mcq);font-size:.78rem;font-family:'DM Mono',monospace;
+  white-space:nowrap}
+.mcq-label{color:var(--text-dim);font-size:.85rem;font-family:'DM Mono',monospace;flex:1}
+.mcq-row input[type=number]{background:var(--surface2);border:1px solid rgba(16,185,129,.3);
+  border-radius:10px;padding:9px 12px;color:var(--text);font-family:'DM Mono',monospace;
+  font-size:.9rem;outline:none;width:90px;-moz-appearance:textfield}
+.mcq-row input[type=number]::-webkit-outer-spin-button,
+.mcq-row input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+.mcq-row input[type=number]:focus{border-color:var(--mcq)}
+
+.marks-summary{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:12px 16px;margin-top:12px;font-family:'DM Mono',monospace;font-size:.85rem;
+  display:flex;justify-content:space-between;align-items:center}
+.marks-total{color:var(--accent3);font-weight:500}
+
+.btn-generate{width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;
+  font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:700;letter-spacing:.5px;
+  position:relative;overflow:hidden;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:white;transition:all .3s;margin-top:8px}
+.btn-generate::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.1),transparent);
+  transform:translateX(-100%);transition:transform .4s}
+.btn-generate:hover::before{transform:translateX(0)}
+.btn-generate:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,212,255,.3)}
+.btn-generate:active{transform:translateY(0)}
+.btn-generate:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-generate .spinner{display:none;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;margin:auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+#resultPanel{display:none;background:var(--surface);border:1px solid var(--success);
+  border-radius:20px;padding:28px;animation:resultReveal .6s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes resultReveal{from{opacity:0;transform:scale(.95) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.result-header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.result-icon{width:50px;height:50px;border-radius:14px;background:rgba(16,185,129,.15);
+  border:1px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;animation:checkPop .5s cubic-bezier(.34,1.56,.64,1) .2s both}
+@keyframes checkPop{from{transform:scale(0) rotate(-45deg)}to{transform:scale(1) rotate(0)}}
+.result-meta{flex:1}
+.result-title{font-size:1.1rem;font-weight:700;color:var(--success)}
+.result-sub{font-size:.82rem;color:var(--text-dim);font-family:'DM Mono',monospace;margin-top:3px}
+.source-badge{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 10px;
+  border-radius:20px;font-size:.72rem;font-family:'DM Mono',monospace}
+.source-badge.gemini{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:var(--mcq)}
+.source-badge.rulebased{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--accent3)}
+
+.btn-download{display:flex;align-items:center;gap:8px;justify-content:center;
+  background:var(--success);color:white;border:none;border-radius:12px;
+  padding:13px 24px;cursor:pointer;font-family:'Syne',sans-serif;font-size:.95rem;
+  font-weight:700;width:100%;margin-top:16px;transition:all .2s}
+.btn-download:hover{background:#059669;transform:translateY(-1px);box-shadow:0 6px 20px rgba(16,185,129,.3)}
+
+.preview-wrap{display:none;margin-top:16px}
+.preview-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-size:.85rem;color:var(--text-dim);font-family:'DM Mono',monospace;
+  padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);
+  transition:all .2s;width:fit-content}
+.preview-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.preview-content{display:none;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;padding:20px;margin-top:10px;max-height:500px;overflow-y:auto}
+.preview-content::-webkit-scrollbar{width:4px}
+.preview-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.preview-section{margin-bottom:20px}
+.preview-section-title{font-size:.78rem;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--accent3);font-family:'DM Mono',monospace;margin-bottom:10px;
+  padding-bottom:6px;border-bottom:1px solid var(--border)}
+.preview-section-title.mcq-title{color:var(--mcq)}
+.preview-q{font-size:.88rem;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.02);
+  margin-bottom:8px;line-height:1.5;border-left:2px solid var(--border);transition:border-color .2s;
+  animation:qFade .3s ease both}
+.preview-q:hover{border-left-color:var(--accent)}
+.preview-q.mcq-q{border-left-color:rgba(16,185,129,.3)}
+.preview-q.mcq-q:hover{border-left-color:var(--mcq)}
+@keyframes qFade{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.qnum{font-family:'DM Mono',monospace;color:var(--text-dim);font-size:.78rem;margin-right:8px}
+.mcq-options{margin-top:6px;margin-left:16px}
+.mcq-option{font-size:.82rem;padding:3px 0;font-family:'DM Mono',monospace;color:var(--text-dim)}
+.mcq-option.correct{color:var(--mcq);font-weight:600}
+.mcq-expl{font-size:.78rem;color:var(--text-dim);margin-top:4px;font-style:italic;padding-left:16px}
+
+.toast{position:fixed;bottom:24px;right:24px;z-index:1000;background:var(--surface);
+  border:1px solid var(--danger);border-radius:12px;padding:14px 20px;font-size:.9rem;
+  display:flex;align-items:center;gap:10px;max-width:360px;box-shadow:0 8px 30px rgba(0,0,0,.4);
+  animation:toastIn .4s cubic-bezier(.34,1.56,.64,1)}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(.9)}to{opacity:1;transform:translateY(0) scale(1)}}
+.toast-close{margin-left:auto;cursor:pointer;color:var(--text-dim);font-size:1.2rem}
+
+.particle{position:fixed;pointer-events:none;z-index:10;border-radius:50%;animation:particleFly 1.2s ease forwards}
+@keyframes particleFly{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0)}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+<div class="bg-orb orb3"></div>
+
+<div class="app">
+  <header>
+    <div class="logo-badge"><span class="logo-dot"></span>AI Question Paper Generator</div>
+    <h1>QPGen</h1>
+    <p class="tagline">Upload → Analyze → Generate → Download</p>
+    <div class="api-status checking" id="apiStatus">
+      <span class="status-dot"></span>
+      <span id="apiStatusText">Checking Gemini API...</span>
+    </div>
+  </header>
+
+  <!-- Step 1: Upload -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-num s1">01</div>
+      <div><div class="card-title">Upload Notebook PDF</div>
+        <div class="card-sub">Upload your PDF notebook or notes</div></div>
+    </div>
+    <div class="upload-zone" id="uploadZone">
+      <span class="upload-icon">📄</span>
+      <div class="upload-title">Drop your PDF here or click to browse</div>
+      <div class="upload-hint">Supports any PDF notebook, notes, or study material</div>
+      <input type="file" id="fileInput" accept=".pdf">
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label" id="progressLabel">Uploading...</div>
+    </div>
+    <div class="pdf-stats" id="pdfStats"></div>
+    <div class="topics-wrap" id="topicsWrap">
+      <div class="topics-label">Detected Topics &amp; Keywords</div>
+      <div class="tags" id="topicsTags"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-num s2">02</div>
+      <div><div class="card-title">Paper Configuration</div>
+        <div class="card-sub">Set institution, subject, and question sections</div></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Institution Name</label>
+        <input type="text" id="institution" placeholder="e.g. ABC College of Engineering">
+      </div>
+      <div class="form-group">
+        <label>Subject / Course</label>
+        <input type="text" id="subject" placeholder="e.g. Data Structures">
+      </div>
+    </div>
+
+    <div class="sections-area">
+      <!-- MCQ Row -->
+      <div style="margin-bottom:14px">
+        <div class="sections-header">
+          <div class="sections-title">MCQ Section</div>
+        </div>
+        <div class="mcq-row">
+          <span class="mcq-badge">🤖 AI MCQ</span>
+          <span class="mcq-label">Multiple Choice Questions (1 mark each) with answers &amp; explanations</span>
+          <input type="number" id="mcqCount" min="0" max="50" value="5" placeholder="0" oninput="updateSummary()">
+          <span style="font-size:.78rem;color:var(--text-dim);font-family:'DM Mono',monospace">questions</span>
+        </div>
+      </div>
+
+      <!-- Descriptive rows -->
+      <div class="sections-header">
+        <div class="sections-title">Descriptive Sections</div>
+        <button class="btn-add" onclick="addSection()"><span>+</span> Add Section</button>
+      </div>
+      <div class="col-labels">
+        <span>Marks per question</span><span>Number of questions</span><span></span>
+      </div>
+      <div id="sectionsContainer"></div>
+      <div class="marks-summary">
+        <span>Total Questions: <span id="totalQCount" style="color:var(--text)">0</span></span>
+        <span class="marks-total">Total Marks: <span id="totalMarks">0</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Generate -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-num s3">03</div>
+      <div><div class="card-title">Generate Question Paper</div>
+        <div class="card-sub">Gemini AI generates accurate questions + MCQs with answer key</div></div>
+    </div>
+    <button class="btn-generate" id="genBtn" onclick="generate()">
+      <span id="genBtnText">⚡ Generate Question Paper</span>
+      <div class="spinner" id="genSpinner"></div>
+    </button>
+  </div>
+
+  <!-- Result -->
+  <div id="resultPanel">
+    <div class="result-header">
+      <div class="result-icon">✅</div>
+      <div class="result-meta">
+        <div class="result-title">Question Paper Ready!</div>
+        <div class="result-sub" id="resultSub">Generated successfully</div>
+        <div class="source-badge gemini" id="sourceBadge">✨ Gemini AI</div>
+      </div>
+    </div>
+    <button class="btn-download" id="downloadBtn" onclick="download()">⬇️ Download Question Paper PDF</button>
+    <div class="preview-wrap" id="previewWrap">
+      <div class="preview-toggle" onclick="togglePreview()">
+        <span id="previewToggleIcon">▶</span> Preview Questions
+      </div>
+      <div class="preview-content" id="previewContent"></div>
+      <div class="preview-toggle" id="answerKeyToggle" onclick="toggleAnswerKey()" style="display:none; margin-top:8px; border-color:var(--mcq); color:var(--mcq);">
+        <span id="answerKeyIcon">▶</span> 🔑 MCQ Answer Key
+      </div>
+      <div class="preview-content" id="answerKeyContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let uploadedPDF = false, lastFilename = null, sections = [], sectionId = 0;
+
+// ── Init ──
+window.onload = () => {
+  checkApiStatus();
+  addSection(2, 5);
+  addSection(4, 3);
+};
+
+// ── API Status ──
+async function checkApiStatus() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    const el = document.getElementById('apiStatus');
+    const tx = document.getElementById('apiStatusText');
+    if (d.gemini_ready) {
+      el.className = 'api-status ok';
+      tx.textContent = `Gemini ready · ${d.model || ''}`;
+    } else {
+      el.className = 'api-status fail';
+      const errMsg = d.error || 'check .env file';
+      tx.textContent = `Gemini offline · ${errMsg}`;
+      // Show a toast with fix hint if key is missing
+      if (errMsg.includes('not set') || errMsg.includes('not initialized')) {
+        setTimeout(() => showToast(
+          '⚠️ Gemini API key missing. Create a .env file with GEMINI_API_KEY=your_key. Run python check_setup.py to diagnose.'
+        ), 1500);
+      }
+    }
+  } catch(e) {
+    document.getElementById('apiStatus').className = 'api-status fail';
+    document.getElementById('apiStatusText').textContent = 'Could not reach /status endpoint';
+  }
+}
+
+// ── Upload ──
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+uploadZone.onclick = () => fileInput.click();
+uploadZone.ondragover = e => { e.preventDefault(); uploadZone.classList.add('drag'); };
+uploadZone.ondragleave = () => uploadZone.classList.remove('drag');
+uploadZone.ondrop = e => { e.preventDefault(); uploadZone.classList.remove('drag'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
+fileInput.onchange = e => { if(e.target.files[0]) handleFile(e.target.files[0]); };
+
+function handleFile(file) {
+  if(!file.name.toLowerCase().endsWith('.pdf')) { showToast('Please upload a PDF file'); return; }
+  const pw = document.getElementById('progressWrap'),
+        pf = document.getElementById('progressFill'),
+        pl = document.getElementById('progressLabel');
+  pw.style.display = 'block';
+  let progress = 0;
+  const tick = setInterval(() => {
+    progress = Math.min(progress + Math.random()*15, 85);
+    pf.style.width = progress + '%';
+    pl.textContent = progress < 30 ? 'Uploading PDF...' : progress < 60 ? 'Extracting text...' : 'Analyzing content...';
+  }, 200);
+  const fd = new FormData(); fd.append('pdf', file);
+  fetch('/upload', { method:'POST', body:fd })
+    .then(r => r.json())
+    .then(data => {
+      clearInterval(tick); pf.style.width = '100%';
+      if(data.success) {
+        pl.textContent = '✓ Analysis complete'; pl.style.color = 'var(--success)';
+        uploadedPDF = true;
+        showStats(data); showTopics(data.topics, data.keywords);
+        uploadZone.innerHTML = `<span class="upload-icon">✅</span><div class="upload-title">${file.name}</div><div class="upload-hint">${data.pages} pages · ${data.word_count.toLocaleString()} words · ${data.definitions} definitions found</div>`;
+        uploadZone.style.borderColor = 'var(--success)';
+        uploadZone.style.background = 'rgba(16,185,129,0.03)';
+      } else { showToast(data.error || 'Upload failed'); pw.style.display = 'none'; }
+    }).catch(() => { clearInterval(tick); showToast('Upload failed. Please try again.'); });
+}
+
+function showStats(data) {
+  const el = document.getElementById('pdfStats'); el.style.display = 'flex';
+  el.innerHTML = [['Pages',data.pages],['Words',data.word_count.toLocaleString()],['Definitions',data.definitions],['Facts',data.facts]]
+    .map((s,i) => `<div class="stat-chip" style="animation-delay:${i*.08}s"><span class="chip-label">${s[0]}</span><span class="chip-val">${s[1]}</span></div>`).join('');
+}
+
+function showTopics(topics, keywords) {
+  const wrap = document.getElementById('topicsWrap');
+  const all = [...(topics||[]).slice(0,6), ...(keywords||[]).slice(0,10)];
+  if(!all.length) return;
+  wrap.style.display = 'block';
+  document.getElementById('topicsTags').innerHTML = all.map((t,i) => `<span class="tag" style="animation-delay:${i*.05}s">${t}</span>`).join('');
+}
+
+// ── Sections ──
+function addSection(marks=2, count=5) {
+  const id = ++sectionId; sections.push(id);
+  const div = document.createElement('div');
+  div.className = 'section-row'; div.id = 'sec_'+id;
+  div.innerHTML = `
+    <input type="number" min="1" max="20" value="${marks}" placeholder="Marks" id="marks_${id}" oninput="updateSummary()">
+    <input type="number" min="1" max="50" value="${count}" placeholder="Count" id="count_${id}" oninput="updateSummary()">
+    <button class="btn-remove" onclick="removeSection(${id})">×</button>`;
+  document.getElementById('sectionsContainer').appendChild(div);
+  updateSummary();
+}
+
+function removeSection(id) {
+  const el = document.getElementById('sec_'+id);
+  if(el){ el.style.opacity='0'; el.style.transform='translateX(10px)'; el.style.transition='all .2s'; setTimeout(()=>el.remove(),200); }
+  sections = sections.filter(s=>s!==id); updateSummary();
+}
+
+function getSections() {
+  const arr = [];
+  const mcqCount = parseInt(document.getElementById('mcqCount').value||0);
+  if(mcqCount > 0) arr.push({type:'mcq', count:mcqCount});
+  sections.forEach(id => {
+    const m = parseInt(document.getElementById('marks_'+id)?.value||0);
+    const c = parseInt(document.getElementById('count_'+id)?.value||0);
+    if(m>0 && c>0) arr.push({type:'marks', marks:m, count:c});
+  });
+  return arr;
+}
+
+function updateSummary() {
+  const mcqC = parseInt(document.getElementById('mcqCount').value||0);
+  let totalQ = mcqC, totalM = mcqC; // MCQs are 1 mark each
+  sections.forEach(id => {
+    const m = parseInt(document.getElementById('marks_'+id)?.value||0);
+    const c = parseInt(document.getElementById('count_'+id)?.value||0);
+    if(m>0&&c>0){ totalQ+=c; totalM+=m*c; }
+  });
+  document.getElementById('totalQCount').textContent = totalQ;
+  document.getElementById('totalMarks').textContent  = totalM;
+}
+
+// ── Generate ──
+async function generate() {
+  if(!uploadedPDF) { showToast('Please upload a PDF first!'); return; }
+  const secs = getSections();
+  if(!secs.length) { showToast('Please add at least one section or MCQs'); return; }
+
+  const btn=document.getElementById('genBtn'), txt=document.getElementById('genBtnText'), spin=document.getElementById('genSpinner');
+  btn.disabled=true; txt.style.display='none'; spin.style.display='block';
+
+  try {
+    // Separate MCQs from descriptive sections
+    const mcqCount = parseInt(document.getElementById('mcqCount').value || 0);
+    const descSections = secs.filter(s => s.type === 'marks');
+
+    const res = await fetch('/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        sections: descSections,
+        mcq_count: mcqCount,
+        config: {
+          institution: document.getElementById('institution').value || 'Examination',
+          subject: document.getElementById('subject').value || 'Subject'
+        }
+      })
+    });
+    const data = await res.json();
+    if(data.success) { lastFilename=data.filename; showResult(data); spawnParticles(); }
+    else showToast(data.error||'Generation failed');
+  } catch(e) { showToast('Generation failed. Please try again.'); }
+  finally { btn.disabled=false; txt.style.display='inline'; spin.style.display='none'; }
+}
+
+function showResult(data) {
+  const panel = document.getElementById('resultPanel');
+  panel.style.display = 'block';
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}), 100);
+  document.getElementById('resultSub').textContent = `${data.total_questions} questions · ${data.total_marks} total marks`;
+
+  const badge = document.getElementById('sourceBadge');
+  if(data.used_gemini) {
+    badge.className = 'source-badge gemini'; badge.textContent = '✨ Generated by Gemini AI';
+  } else {
+    badge.className = 'source-badge rulebased';
+    const why = data.gemini_error ? ` — ${data.gemini_error.substring(0,70)}` : '';
+    badge.textContent = `⚙️ Rule-based fallback${why}`;
+  }
+
+  // ── Build questions preview ──
+  let html = '';
+
+  // MCQ preview (questions only, no answers here)
+  if(data.preview_mcq && data.preview_mcq.length) {
+    html += `<div class="preview-section">
+      <div class="preview-section-title mcq-title">🟢 MCQ Questions — 1 Mark Each (${data.preview_mcq.length} questions)</div>`;
+    data.preview_mcq.forEach((item, i) => {
+      const opts = Object.entries(item.options).map(([k,v]) =>
+        `<div class="mcq-option">${k}) ${v}</div>`).join('');
+      html += `<div class="preview-q mcq-q" style="animation-delay:${i*.04}s">
+        <span class="qnum">Q${i+1}.</span>${item.q}
+        <div class="mcq-options">${opts}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // Descriptive preview
+  const sorted = Object.keys(data.preview_desc).sort((a,b)=>parseInt(a)-parseInt(b));
+  let qOffset = (data.preview_mcq||[]).length + 1;
+  sorted.forEach(marks => {
+    const qs = data.preview_desc[marks];
+    html += `<div class="preview-section">
+      <div class="preview-section-title">Section — ${marks} Mark${marks>1?'s':''} Questions (${qs.length} questions)</div>
+      ${qs.map((q,i)=>`<div class="preview-q" style="animation-delay:${i*.04}s"><span class="qnum">Q${qOffset+i}.</span>${q}</div>`).join('')}
+    </div>`;
+    qOffset += qs.length;
+  });
+
+  document.getElementById('previewContent').innerHTML = html;
+  document.getElementById('previewWrap').style.display = 'block';
+
+  // ── Build answer key separately ──
+  if(data.preview_mcq && data.preview_mcq.length) {
+    document.getElementById('answerKeyToggle').style.display = 'flex';
+
+    let akHtml = `<div class="preview-section">
+      <div class="preview-section-title mcq-title">🔑 MCQ Answer Key (${data.preview_mcq.length} questions)</div>`;
+
+    data.preview_mcq.forEach((item, i) => {
+      const correctOpt = item.options[item.answer] || '';
+      akHtml += `<div class="preview-q" style="background:rgba(16,185,129,0.08); border-left:2px solid var(--mcq); padding:10px 12px; margin-bottom:8px; border-radius:8px;">
+        <span class="qnum">Q${i+1}.</span>
+        <strong style="color:var(--mcq)">Ans: (${item.answer})</strong> — ${correctOpt}
+        ${item.explanation ? `<div class="mcq-expl" style="margin-top:6px; color:var(--text-dim); font-style:italic; font-size:.78rem;">💡 ${item.explanation}</div>` : ''}
+      </div>`;
+    });
+
+    akHtml += '</div>';
+    document.getElementById('answerKeyContent').innerHTML = akHtml;
+  }
+}
+
+function download() { if(lastFilename) window.location.href='/download/'+lastFilename; }
+
+function togglePreview() {
+  const c=document.getElementById('previewContent'), icon=document.getElementById('previewToggleIcon');
+  if(c.style.display==='block'){c.style.display='none';icon.textContent='▶';}
+  else{c.style.display='block';icon.textContent='▼';}
+}
+
+function toggleAnswerKey() {
+  const content = document.getElementById('answerKeyContent');
+  const icon = document.getElementById('answerKeyIcon');
+  if(content.style.display === 'block') {
+    content.style.display = 'none';
+    icon.textContent = '▶';
+  } else {
+    content.style.display = 'block';
+    icon.textContent = '▼';
+  }
+}
+
+function spawnParticles() {
+  const cls=['var(--accent)','var(--accent2)','var(--accent3)','var(--success)'];
+  for(let i=0;i<24;i++) setTimeout(()=>{
+    const p=document.createElement('div'); p.className='particle';
+    const sz=4+Math.random()*6;
+    p.style.cssText=`width:${sz}px;height:${sz}px;background:${cls[i%4]};left:${20+Math.random()*60}%;top:${30+Math.random()*40}%;--tx:${(Math.random()-.5)*200}px;--ty:${-(50+Math.random()*150)}px;`;
+    document.body.appendChild(p); setTimeout(()=>p.remove(),1200);
+  },i*40);
+}
+
+function showToast(msg) {
+  const t=document.createElement('div'); t.className='toast';
+  t.innerHTML=`<span>⚠️</span><span>${msg}</span><span class="toast-close" onclick="this.parentNode.remove()">×</span>`;
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateY(10px)';t.style.transition='all .3s';setTimeout(()=>t.remove(),300);},5000);
+}
+</script>
+</body>
+</html>
